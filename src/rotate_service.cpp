@@ -1,54 +1,40 @@
-#include "my_rb1_ros/custom_service_messages.h"
-#include "ros/publisher.h"
-#include <geometry_msgs/Twist.h>
-#include <iostream>
+//#include <iterator>
+#include <my_rb1_ros/custom_service_messages.h>
+//#include <ros/ros.h>
+//#include <geometry_msgs/Twist.h>
+//#include <nav_msgs/Odometry.h>
+//#include <tf/transform_datatypes.h>
+
 #include <ros/ros.h>
-#include <sstream>
-#include <std_srvs/Empty.h>
-#include <string>
+#include <tf/transform_datatypes.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Twist.h>
+#include <math.h>
+//#include "pkg_name/srv_custom_file.h"
 
-bool handleService(my_rb1_ros::custom_service_messages::Request &req,
-                   my_rb1_ros::custom_service_messages::Response &res) {
-  int degrees = req.degrees;
-  ROS_INFO("Received degrees: %d", degrees);
+//now define the private variables I plan to use
+double roll, pitch, yaw;
+double degree_input;
+double input_radian_convert;
 
-  // Calculate the time to reach the desired degrees at a constant angular
-  // velocity
-  double angular_velocity =
-      degrees * 3.14 / 180 / 4 ; // radians per second (to be done over 4 secs)
+//(const nav_msgs::Odometry::custom_service::Requestg& req, pkg_name::custom_service::Response& res)
 
-  // Create a Timer to publish the Twist message over 4 seconds
-  ros::NodeHandle nh;
-  ros::Publisher cmd_vel_publisher =
-      nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
-  ros::Rate loop_rate(100); // Publish at 10 Hz
-  ros::Time start_time = ros::Time::now();
+void getRotation(const nav_msgs::Odometry::ConstPtr& msg)
+{
+    geometry_msgs::Quaternion orientation = msg->pose.pose.orientation;
+    tf::Quaternion tf_orientation;
+    tf::quaternionMsgToTF(orientation, tf_orientation);
+    tf::Matrix3x3(tf_orientation).getRPY(roll, pitch, yaw);
+    ROS_INFO("Yaw = %.2f", yaw);
+}   
 
-  while ((ros::Time::now() - start_time).toSec() < 4) {
-    geometry_msgs::Twist twist_msg;
-    twist_msg.angular.z = angular_velocity;
-    cmd_vel_publisher.publish(twist_msg);
-    loop_rate.sleep();
-  }
+int main(int argc, char** argv)
+{
+    ros::init(argc, argv, "rotate_this_thing");
+    ros::NodeHandle nh;
+    ros::Subscriber sub;
+    sub = nh.subscribe("/odom", 1 ,getRotation); 
+    ros::spin();
 
-  // Stop the rotation when the desired time has passed
-  geometry_msgs::Twist stop_twist;
-  stop_twist.angular.z = 0;
-  cmd_vel_publisher.publish(stop_twist);
-  ROS_INFO("The robot has rotated");
-
-  return true;
-}
-
-int main(int argc, char **argv) {
-  ros::init(argc, argv, "rotate_node");
-  ros::NodeHandle nh;
-
-  ros::ServiceServer service =
-      nh.advertiseService("/rotate_service", handleService);
-  ROS_INFO("Rotate service server is ready.");
-
-  ros::spin();
-
-  return 0;
+    return 0;  
 }
